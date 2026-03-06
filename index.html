@@ -110,6 +110,8 @@ body::after{content:"";position:fixed;inset:0;background:repeating-linear-gradie
 .badge-green{background:var(--green-dim);color:var(--green)}
 .record-restricted{position:relative;overflow:hidden}
 .record-restricted::after{content:"RESTRICTED";position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:0.5rem;color:var(--red);letter-spacing:0.15em;opacity:0.6}
+.record-unlocked{border-color:rgba(79,220,120,0.15)!important}
+.record-unlocked::after{content:"UNLOCKED";position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:0.5rem;color:var(--green);letter-spacing:0.15em;opacity:0.6}
 
 /* ═══ RECORD DETAIL VIEW ═══ */
 .record-overlay{position:fixed;inset:0;background:rgba(3,5,10,0.88);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity 0.3s}
@@ -527,13 +529,13 @@ db==='events'?`${rec.date} · ${rec.location}`:
 db==='zanpakuto'?`Wielder: ${rec.wielder}`:
 `${rec.rank} · ${rec.status}`;
 const badge=db==='personnel'?rec.status:db==='events'?rec.severity:db==='zanpakuto'?rec.type:rec.status;
-const restricted=rec.restricted?' record-restricted':'';
+const restricted=rec.restricted&&!commanderAccess?' record-restricted':rec.restricted&&commanderAccess?' record-unlocked':'';
 
 const row=document.createElement('div');
 row.className='record-row'+restricted;
 row.innerHTML=`<span class="record-id">${rec.id}</span><span class="record-name">${rec.name}</span><span class="record-sub">${sub}</span><span class="record-badge ${badgeColors[db]}">${badge}</span>`;
 row.addEventListener('click',()=>{
-if(rec.clearance==='commander'){showAccessDenied();return}
+if(rec.clearance==='commander'&&!commanderAccess){showAccessDenied();return}
 openRecord(db,i);
 });
 list.appendChild(row);
@@ -598,15 +600,50 @@ document.body.style.overflow='';
 }
 
 document.getElementById('recordOverlay').addEventListener('click',e=>{if(e.target.id==='recordOverlay')closeRecord()});
-document.addEventListener('keydown',e=>{
-if(e.key==='Escape'){closeRecord();closeDenied()}
-});
 
 // ═══════════════════════════════════════════
 // ACCESS DENIED
 // ═══════════════════════════════════════════
 function showAccessDenied(){document.getElementById('accessDenied').classList.add('active')}
 function closeDenied(){document.getElementById('accessDenied').classList.remove('active')}
+
+// ═══════════════════════════════════════════
+// SECRET PASSCODE — CLEARANCE OVERRIDE
+// ═══════════════════════════════════════════
+let keyBuffer='';
+let commanderAccess=false;
+document.addEventListener('keydown',e=>{
+if(e.key==='Escape'){closeRecord();closeDenied();return}
+if(commanderAccess)return;
+if(e.key.length===1){
+keyBuffer+=e.key.toLowerCase();
+if(keyBuffer.length>20)keyBuffer=keyBuffer.slice(-20);
+if(keyBuffer.includes('shiroyuri')){
+commanderAccess=true;
+keyBuffer='';
+activateCommanderAccess();
+}
+}
+});
+
+function activateCommanderAccess(){
+// Update topbar
+document.querySelector('.topbar-user').textContent='◆ CAPTAIN-COMMANDER CLEARANCE';
+document.querySelector('.topbar-user').style.color='var(--green)';
+
+// Flash effect
+const flash=document.createElement('div');
+flash.style.cssText='position:fixed;inset:0;background:rgba(79,220,120,0.08);z-index:9998;pointer-events:none;transition:opacity 1.5s';
+document.body.appendChild(flash);
+setTimeout(()=>{flash.style.opacity='0'},100);
+setTimeout(()=>flash.remove(),1600);
+
+// Re-render current view if in a DB
+if(currentDB)renderRecords(currentDB,document.querySelector('.db-search input')?.value||'');
+
+// Nemu confirms
+showNemu("Clearance override accepted. Commander-level access granted. The white lily opens all doors. — NEMU");
+}
 
 // ═══════════════════════════════════════════
 // INIT
